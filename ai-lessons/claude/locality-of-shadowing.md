@@ -5,25 +5,25 @@
 
   1. Keep Shadowing Contained to Its Namespace
 
-  When you shadow a core function (like in iron-lily.rng):
-  - :white_check_mark: It's fine to use rand-int inside iron-lily.rng namespace
+  When you shadow a core function (like in example.rng):
+  - :white_check_mark: It's fine to use rand-int inside example.rng namespace
   - :white_check_mark: The :refer-clojure :exclude [rand-int] makes the shadowing explicit
   - :x: Don't let it leak to other namespaces via :refer
 
   2. Use Qualified Names Outside the Shadowing Namespace
 
-  In other namespaces (like iron-lily.systems.production):
+  In other namespaces (like example.systems.production):
 
   ;; :white_check_mark: GOOD - Makes it explicit this is rng's version
-  (ns iron-lily.systems.production
-    (:require [iron-lily.rng :as rng]))
+  (ns example.systems.production
+    (:require [example.rng :as rng]))
 
   (rng/rand-int rng-state 100)  ; Clear: this is the deterministic version
   (rng/with-rng world :production ...) ; Clear: using rng module
 
   ;; :x: BAD - Brings shadowing into this namespace
-  (ns iron-lily.systems.production
-    (:require [iron-lily.rng :refer [rand-int]]))
+  (ns example.systems.production
+    (:require [example.rng :refer [rand-int]]))
 
   (rand-int rng-state 100)  ; Confusing: which rand-int?
 
@@ -46,16 +46,16 @@
 
   4. The Goal: No Surprises at Any Distance
 
-  - Inside iron-lily.rng: rand-int is our deterministic version (documented)
-  - In iron-lily.systems.production: rng/rand-int makes it clear it's not
+  - Inside example.rng: rand-int is our deterministic version (documented)
+  - In example.systems.production: rng/rand-int makes it clear it's not
   core
-  - In user code: If they import as [iron-lily.rng :as rng], they still see
+  - In user code: If they import as [example.rng :as rng], they still see
   rng/rand-int
   - In tests: with-redefs makes temporary overrides explicit
 
   5. Library-Safe Design
 
-  If iron-lily becomes a library:
+  If example becomes a library:
   - Users who require our namespaces won't get surprised by shadowed
   functions
   - They'll see rng/rand-int and know it's not core
