@@ -87,6 +87,82 @@ EOF
 (ex-data *e)                ;; Data from ex-info exceptions
 ```
 
+### Tap-Based Debug Logging
+
+Use `tap>` with a global atom to capture values during debugging. This is especially useful for LLM-assisted debugging - structured data in the REPL beats parsing console output.
+
+**Setup (evaluate once per session):**
+```clojure
+(defonce debug-log (atom []))
+(defonce debug-log-max 100)
+
+(defn- debug-entry [v]
+  (let [ts #?(:clj (System/currentTimeMillis) :cljs (.getTime (js/Date.)))
+        [label value] (if (and (vector? v) (= 2 (count v)) (keyword? (first v)))
+                        v
+                        [nil v])]
+    {:ts ts :label label :value value}))
+
+(defonce _tap-handler
+  (add-tap (fn [v]
+             (swap! debug-log
+                    (fn [log]
+                      (let [log' (conj log (debug-entry v))]
+                        (if (> (count log') debug-log-max)
+                          (vec (drop (- (count log') debug-log-max) log'))
+                          log')))))))
+```
+
+**Query helpers:**
+```clojure
+(defn logs
+  "Query debug log: (logs), (logs 5), (logs :label), (logs :label 3)"
+  ([] @debug-log)
+  ([n-or-label]
+   (if (number? n-or-label)
+     (vec (take-last n-or-label @debug-log))
+     (vec (filter #(= n-or-label (:label %)) @debug-log))))
+  ([label n]
+   (vec (take-last n (filter #(= label (:label %)) @debug-log)))))
+
+(defn log-values
+  "Like logs, but returns just the values"
+  ([] (mapv :value @debug-log))
+  ([n-or-label] (mapv :value (logs n-or-label)))
+  ([label n] (mapv :value (logs label n))))
+
+(defn clear-logs! [] (reset! debug-log []))
+
+(defn last-log
+  "Most recent entry, or just value with (last-log :v)"
+  ([] (last @debug-log))
+  ([_] (:value (last @debug-log))))
+```
+
+**Usage:**
+```clojure
+;; Labeled logging - vector with keyword first
+(tap> [:fetch response])
+(tap> [:error {:fn 'process :ex (ex-message e)}])
+
+;; Unlabeled - any other value
+(tap> intermediate-result)
+
+;; Query in REPL
+(logs 5)                  ;; Last 5 entries
+(logs :fetch)             ;; All :fetch entries
+(log-values :error 3)     ;; Last 3 error values only
+(last-log :v)             ;; Most recent value
+
+;; In threading macros
+(->> data
+     (map transform)
+     (doto #(tap> [:after-map %]))
+     (filter valid?))
+```
+
+**Why this beats devtools:** Structured data stays in the REPL where you can `def`, transform, and test against captured values directly.
+
 ## Data Visualization
 
 ### Pretty Printing
